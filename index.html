@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#F5F5F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SPARK">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>SPARK · 灵感雷达</title>
 <style>
   :root {
@@ -20,13 +24,33 @@
     max-width: 480px; margin: 0 auto;
     padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 32px);
   }
+  body.locked { overflow: hidden; }
   header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
   .brand { display: flex; align-items: center; gap: 8px; }
   .brand svg { display: block; }
   .wordmark { font-size: 22px; font-weight: 700; letter-spacing: 2px; }
   .tagline { font-size: 12px; color: var(--ink3); margin: 2px 0 16px 34px; letter-spacing: 0.3px; }
+  .head-right { display: flex; align-items: center; gap: 10px; }
   .clock { font-size: 11px; color: var(--ink3); text-align: right; line-height: 1.5; font-variant-numeric: tabular-nums; }
   .clock b { display: block; color: var(--ink2); font-weight: 500; font-size: 12px; }
+  .refresh-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--card);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto;
+  }
+  .refresh-btn svg { transition: transform .5s ease; }
+  .refresh-btn.spinning svg { transform: rotate(360deg); }
+
+  .ptr {
+    position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 50%;
+    transform: translateX(-50%) translateY(-56px);
+    background: var(--dark); color: #F5F5F5; font-size: 12px; line-height: 1;
+    padding: 9px 16px; border-radius: 999px; z-index: 60;
+    transition: transform .18s ease; display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; white-space: nowrap;
+  }
+  .ptr.show { transform: translateX(-50%) translateY(0); }
+  .ptr .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--spark); }
+  .ptr.loading .dot { animation: pulse 1s infinite; }
 
   .seg { display: flex; gap: 2px; background: #EBEBEB; border-radius: 999px; padding: 3px; overflow-x: auto; scrollbar-width: none; margin-bottom: 16px; }
   .seg::-webkit-scrollbar { display: none; }
@@ -41,8 +65,10 @@
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 16px;
     padding: 14px 16px; cursor: pointer; transition: transform .12s ease;
+    display: flex; gap: 12px; align-items: flex-start;
   }
   .card:active { transform: scale(.985); }
+  .card .text { flex: 1; min-width: 0; }
   .card .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .chip {
     font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 8px; border-radius: 999px;
@@ -53,8 +79,14 @@
   .card h2 { font-size: 15px; font-weight: 600; line-height: 1.45; margin-bottom: 4px; }
   .card p { font-size: 13px; color: var(--ink2); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .meta { margin-top: 8px; font-size: 11px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .thumb {
+    width: 72px; height: 72px; border-radius: 12px; object-fit: cover; flex: 0 0 auto;
+    background: #EFEFEF; border: 1px solid var(--line);
+  }
 
-  .card.hero { background: var(--dark); border-color: var(--dark); color: #F5F5F5; }
+  .card.hero { background: var(--dark); border-color: var(--dark); color: #F5F5F5; display: block; padding: 0; overflow: hidden; }
+  .card.hero .hero-img { width: 100%; height: 168px; object-fit: cover; display: block; background: #232323; }
+  .card.hero .text { padding: 14px 16px; }
   .card.hero p { color: #A8A8A8; }
   .card.hero .meta { color: #8A8A8A; }
   .card.hero .chip { background: var(--spark); color: #141414; }
@@ -63,9 +95,57 @@
   .summary-bar { font-size: 12px; color: var(--ink2); background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; line-height: 1.6; }
   .empty { text-align: center; color: var(--ink3); font-size: 13px; padding: 48px 0; }
   footer { margin-top: 24px; text-align: center; font-size: 11px; color: var(--ink3); line-height: 1.8; }
+
+  .toast {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); left: 50%;
+    transform: translateX(-50%) translateY(70px);
+    background: var(--dark); color: #F5F5F5; font-size: 12px; padding: 10px 18px;
+    border-radius: 999px; z-index: 70; transition: transform .25s ease; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .mask {
+    position: fixed; inset: 0; background: rgba(20,20,20,.42); z-index: 80;
+    opacity: 0; pointer-events: none; transition: opacity .22s ease;
+  }
+  .mask.open { opacity: 1; pointer-events: auto; }
+  .reader {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+    max-width: 480px; margin: 0 auto;
+    background: var(--bg); border-radius: 20px 20px 0 0;
+    height: 86vh; height: 86dvh;
+    transform: translateY(102%); transition: transform .28s cubic-bezier(.2,.8,.25,1);
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 -8px 32px rgba(0,0,0,.18);
+  }
+  .reader.open { transform: translateY(0); }
+  .reader .grip { padding: 10px 0 6px; display: flex; justify-content: center; flex: 0 0 auto; }
+  .reader .grip i { width: 38px; height: 4px; border-radius: 2px; background: #D4D4D4; }
+  .reader .r-head { padding: 4px 20px 12px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .reader .r-head .row1 { margin-bottom: 8px; }
+  .reader h1 { font-size: 18px; font-weight: 700; line-height: 1.5; }
+  .reader .r-meta { margin-top: 8px; font-size: 11px; color: var(--ink3); }
+  .reader .r-body { flex: 1; overflow-y: auto; padding: 16px 20px 24px; -webkit-overflow-scrolling: touch; }
+  .reader .r-body p { font-size: 15px; line-height: 1.8; color: #2B2B2B; margin-bottom: 14px; }
+  .reader .r-body h3 { font-size: 16px; margin: 18px 0 8px; }
+  .reader .r-body img { max-width: 100%; border-radius: 10px; margin: 6px 0 14px; }
+  .reader .r-body a { color: #7A6200; }
+  .skeleton { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
+  .skeleton i { display: block; height: 13px; border-radius: 7px; background: linear-gradient(90deg,#ECECEC,#F7F7F7,#ECECEC); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
+  .skeleton i:nth-child(2n) { width: 88%; } .skeleton i:nth-child(3n) { width: 62%; }
+  @keyframes shimmer { 0% { background-position: 120% 0 } 100% { background-position: -80% 0 } }
+  .r-foot { flex: 0 0 auto; display: flex; gap: 10px; padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 14px); border-top: 1px solid var(--line); background: var(--card); }
+  .r-foot button {
+    flex: 1; border: 0; border-radius: 999px; padding: 12px 0; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .r-foot .primary { background: var(--dark); color: var(--spark); }
+  .r-foot .ghost { background: #EBEBEB; color: var(--ink2); flex: 0 0 96px; }
 </style>
 </head>
 <body>
+<div class="ptr" id="ptr"><span class="dot"></span><span id="ptrText">下拉获取最新情报</span></div>
+
 <header>
   <div class="brand">
     <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
@@ -74,23 +154,47 @@
     </svg>
     <span class="wordmark">SPARK</span>
   </div>
-  <div class="clock" id="clock"><b>灵感雷达</b><span id="updated"></span></div>
+  <div class="head-right">
+    <div class="clock" id="clock"><b>灵感雷达</b><span id="updated">加载中…</span></div>
+    <button class="refresh-btn" id="refreshBtn" aria-label="刷新">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" stroke="#141414" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
 </header>
 <div class="tagline">Every open, a new spark.</div>
-<div class="summary-bar" id="summaryBar"></div>
+<div class="summary-bar" id="summaryBar" style="display:none"></div>
 <nav class="seg" id="seg" aria-label="分类"></nav>
-<main class="feed" id="feed"></main>
-<footer>SPARK · 灵感雷达 — 数据来自公开 RSS 订阅源<br>每天 3 次自动更新 · 英文情报已译制为中文 · 快照更新于 <span id="footTime"></span></footer>
+<main class="feed" id="feed"><div class="empty">正在接收火花…</div></main>
+<footer>SPARK · 灵感雷达 — 数据来自公开 RSS 订阅源<br>每天 3 次自动更新 · 下拉获取最新快照 · 更新于 <span id="footTime"></span></footer>
 
-<script id="payload" type="application/json">
-{"updatedAt":"2026-08-27T18:46:00+08:00","summary":"本轮收录 20 条：游戏新闻 10 条、行业动态 6 条、AI 开发 4 条；11 个订阅源全部抓取成功，剔除汽车、硬件爆料、机器人营销及无信息量播客共 4 条；英文内容已全部翻译为简体中文。","items":[{"title":"机器人运动会散场后，自变量给机器人建了一座「虚拟训练场」","summary":"具身智能的「ChatGPT 时刻」，看谁能更快走进现实 #欢迎关注爱范儿官方微信公众号：爱范儿（微信号：ifanr），更多精彩内容第一时间为您奉上。","source":"爱范儿","url":"https://www.ifanr.com/1677048?utm_source=rss&utm_medium=rss&utm_campaign=","tag":"AI 开发","publishedAt":"2026-08-27T10:34:37+00:00"},{"title":"Side 签约 Modl.ai 用 AI 做 QA：「永远有人在环路中」","summary":"游戏服务商 Side 与丹麦 AI 公司 Modl.ai 签署谅解备忘录，将 AI 引入游戏质量保证测试，同时强调 AI 只是滑动标尺，始终保留人工参与。","source":"GamesIndustry.biz","url":"https://www.gamesindustry.biz/we-view-ai-as-a-sliding-scale-there-will-always-be-a-human-in-the-loop-thats-our-ethos-why-side-has-signed-an-mou-with-modlai-to-use-ai-for-qa","tag":"AI 开发","publishedAt":"2026-08-27T10:34:25+00:00"},{"title":"Day-0 支持：摩尔线程官宣完成智谱 GLM-5.3-Flash 极速适配","summary":"IT之家 8 月 27 日消息，智谱近日上线并开源 GLM-5.3-Flash (320B-A18B)。摩尔线程官方今日宣布，基于 AI 训推一体智算卡 MTT S5000 及 MUSA 软件栈，Day-0 支持， 实现了对该模型的极速适配与高效运行 。 据介绍， 作为 GLM-…","source":"IT之家","url":"https://www.ithome.com/0/995/237.htm","tag":"AI 开发","publishedAt":"2026-08-27T10:26:06+00:00"},{"title":"为什么苹果、小米的 AI 电脑，都在死磕「内存墙」｜AI 器物志","summary":"算力飞奔，内存掉队 #欢迎关注爱范儿官方微信公众号：爱范儿（微信号：ifanr），更多精彩内容第一时间为您奉上。","source":"爱范儿","url":"https://www.ifanr.com/1676852?utm_source=rss&utm_medium=rss&utm_campaign=","tag":"AI 开发","publishedAt":"2026-08-27T10:15:44+00:00"},{"title":"Godot 4.8 开发如火如荼","summary":"新版本将带来 3D 拖尾节点、VisualShader 节点分组、多次弹射环境光遮蔽、平行光烘焙贴图高光等大量新特性。","source":"80 Level","url":"https://80.lv/articles/godot-4-8-development-is-in-full-swing/","tag":"行业动态","publishedAt":"2026-08-27T10:14:00+00:00"},{"title":"《Road Kings》试玩：灾难片版美国卡车模拟，运椭圆机也好玩","summary":"Rock Paper Shotgun 试玩卡车模拟新作《Road Kings》：沙盒送货既有灾难电影般的惊险时刻，日常运送健身器材同样乐趣十足。","source":"Rock Paper Shotgun","url":"https://www.rockpapershotgun.com/road-kings-is-sometimes-american-truck-simulator-in-a-disaster-movie-but-delivering-crates-of-ellipticals-is-fun-too","tag":"游戏新闻","publishedAt":"2026-08-27T10:00:00+00:00"},{"title":"赛博朋克枪斗术游戏确认发售窗口，明年推出","summary":"这款约翰·威克（John Wick）风格的赛博朋克动作冒险游戏正式确认将于明年发售。","source":"80 Level","url":"https://80.lv/articles/this-cyberpunk-gun-fu-game-gets-a-confirmed-release-window/","tag":"游戏新闻","publishedAt":"2026-08-27T09:50:00+00:00"},{"title":"【更新】《剑网3》制作人郭炜炜宣布离职","summary":"【更新】雷军转发了郭炜炜的微博，并表示“感谢过去22年坚守与付出。祝一切顺利，后会有期！”。 【原文】《剑网3》制作人郭炜炜宣布离职，本周五是最后工作日。他表示：“天下无不散筵席，明天是我在西山居任职的最后一天。04年毕业为了实现心里的江湖梦加入金山游戏旗下的西山居，在剑网3奋斗…","source":"机核 GCORES","url":"https://www.gcores.com/articles/218893","tag":"行业动态","publishedAt":"2026-08-27T17:36:00+08:00"},{"title":"《巫师3》复刻版吸纳顶尖 Mod 作者参与制作","summary":"《巫师3》将推出免费复刻更新，CD Projekt Red 沿续次世代版的做法，引入知名 Mod 作者的成果；官方同时公布了明年《Songs of the Past》扩展的消息。","source":"Rock Paper Shotgun","url":"https://www.rockpapershotgun.com/the-witcher-3-remastered-includes-work-from-a-top-modder-as-cd-projekt-follow-the-path-they-walked-with-the-rpgs-next-gen-update","tag":"游戏新闻","publishedAt":"2026-08-27T09:29:37+00:00"},{"title":"土木人狂喜：《建筑模拟器：进化》公布全新拆除玩法","summary":"astragon Entertainment与weltenbauer.今日正式公布《建筑模拟器：进化》（Construction Simulator: Evolution）的全新 拆除玩法 。与此同时，官方也对游戏的发行计划进行了调整： 本作将率先通过Steam在PC平台开启抢先…","source":"机核 GCORES","url":"https://www.gcores.com/articles/218900","tag":"游戏新闻","publishedAt":"2026-08-27T17:26:03+08:00"},{"title":"欧洲游戏开发者联合会公布 2026-2028 董事会，Hendrik Lesser 连任主席","summary":"欧洲游戏开发者联合会（EGDF）公布 2026-2028 年度董事会名单，Hendrik Lesser 再次当选主席，继续领导这一行业组织。","source":"GamesIndustry.biz","url":"https://www.gamesindustry.biz/european-games-developer-federation-announces-2026-28-board-hendrik-lesser-re-elected-as-president","tag":"行业动态","publishedAt":"2026-08-27T09:05:35+00:00"},{"title":"《Poppy Playtime》宇宙迎来合作生存恐怖新作","summary":"新作《Escape from Playtime》公布，玩家将以 Smiling Critter 的视角探索系列传奇场景，主打合作生存恐怖玩法。","source":"80 Level","url":"https://80.lv/articles/poppy-playtime-universe-gets-a-new-survival-horror-co-op-game/","tag":"游戏新闻","publishedAt":"2026-08-27T08:58:00+00:00"},{"title":"《GTA 6》确认加入生活模拟元素","summary":"《GTA 6》确认包含生活模拟玩法：玩家可以把光鲜亮丽的主角 Jason 和 Lucia，折腾成和我们一样疲惫不堪的普通人。","source":"Rock Paper Shotgun","url":"https://www.rockpapershotgun.com/gta-6-life-simulation-elements-confirmed-thank-god-we-can-turn-the-offensively-hot-jason-and-lucia-into-exhausted-slobs-like-the-rest-of-us","tag":"游戏新闻","publishedAt":"2026-08-27T08:51:45+00:00"},{"title":"《守墓人2》定档，2026年9月22日全球发售","summary":"由开发工作室Lazy Bear Games打造、Solo Game代理发行中国大陆地区的全新续作《守墓人2》（Graveyard Keeper 2）计划于2026年9月22日正式发售，目前游戏已开启预购。 《守墓人2》旨在继承玩家熟悉并喜爱的《守墓人》核心魅力——荒诞离奇的黑色幽…","source":"机核 GCORES","url":"https://www.gcores.com/articles/218897","tag":"游戏新闻","publishedAt":"2026-08-27T16:47:15+08:00"},{"title":"传奇再临，《潜龙谍影：大师合集 Vol.2》今日全球正式推出","summary":"科乐美今日正式在 Nintendo Switch 2、Nintendo Switch、PlayStation 5、Xbox Series X|S 及 Steam 平台推出《潜龙谍影：大师合集 Vol.2》。玩家可体验备受喜爱的《潜龙谍影4：爱国者之枪》与《潜龙谍影：和平行者》强化…","source":"机核 GCORES","url":"https://www.gcores.com/articles/218896","tag":"游戏新闻","publishedAt":"2026-08-27T16:44:21+08:00"},{"title":"Xbox 下一代主机将兼顾「效率与可负担性」","summary":"面对硬件成本上涨与 AI 领域的创新，Xbox 表示下一代主机将在性能之外，优先考虑效率与性价比。","source":"GamesIndustry.biz","url":"https://www.gamesindustry.biz/xbox-to-focus-on-efficiency-and-affordability-alongside-performance-for-next-gen-console-amid-rising-hardware-costs-and-innovations-in-ai","tag":"行业动态","publishedAt":"2026-08-27T07:49:47+00:00"},{"title":"OpenAI 的中场战事","summary":"当领先者不易，当追赶者更不易 #欢迎关注爱范儿官方微信公众号：爱范儿（微信号：ifanr），更多精彩内容第一时间为您奉上。","source":"爱范儿","url":"https://www.ifanr.com/1676929?utm_source=rss&utm_medium=rss&utm_campaign=","tag":"行业动态","publishedAt":"2026-08-27T07:24:07+00:00"},{"title":"【抽奖】国产本格推理游戏《山河旅探》现已登陆主机平台","summary":"由奥秘之家开发、NiuGamer发行的《山河旅探》，现已登陆任天堂Switch、PlayStation、XBOX以及Windows平台，同步支持PlayStation远程游玩和XBOX Play Anywhere功能，并将首次更新日本语言支持。 <内嵌内容，请前往机核查看> Sw…","source":"机核 GCORES","url":"https://www.gcores.com/articles/218885","tag":"游戏新闻","publishedAt":"2026-08-27T15:24:00+08:00"},{"title":"NVIDIA 展示 RTX 版《上古卷轴3：晨风》复刻预览","summary":"演示展示了这款 2002 年的经典 RPG 在现代路径追踪技术与全新资产加持下的画面效果。","source":"80 Level","url":"https://80.lv/articles/nvidia-shows-preview-of-the-elder-scrolls-iii-morrowind-remastered-with-rtx/","tag":"游戏新闻","publishedAt":"2026-08-27T07:20:00+00:00"},{"title":"《巫师》开发商 CD PROJEKT RED 与暴雪达成合作","summary":"《巫师3》复刻版将登陆 Battle.net 平台，暴雪旗下一款游戏还将推出以杰洛特为灵感的联动皮肤。","source":"80 Level","url":"https://80.lv/articles/the-witcher-developer-cd-projekt-red-partners-with-blizzard/","tag":"行业动态","publishedAt":"2026-08-27T06:20:00+00:00"}]}
-</script>
+<div class="toast" id="toast"></div>
+
+<div class="mask" id="mask"></div>
+<section class="reader" id="reader" aria-hidden="true">
+  <div class="grip"><i></i></div>
+  <div class="r-head">
+    <div class="row1"><span class="chip" id="rChip"></span></div>
+    <h1 id="rTitle"></h1>
+    <div class="r-meta" id="rMeta"></div>
+  </div>
+  <div class="r-body" id="rBody"></div>
+  <div class="r-foot">
+    <button class="ghost" id="rClose">关闭</button>
+    <button class="primary" id="rOpen">阅读原文</button>
+  </div>
+</section>
+
 <script>
 (function () {
-  var data = JSON.parse(document.getElementById('payload').textContent);
-  var state = { filter: '全部' };
+  var state = { filter: '全部', data: null, loading: false };
   var segEl = document.getElementById('seg');
   var feedEl = document.getElementById('feed');
+  var ptrEl = document.getElementById('ptr');
+  var ptrText = document.getElementById('ptrText');
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
 
   function fmt(iso) {
     if (!iso) return '';
@@ -105,13 +209,25 @@
     var p = function (n) { return (n < 10 ? '0' : '') + n; };
     return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
+  function fmtShort(iso) {
+    var d = new Date(iso); if (isNaN(d)) return '';
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes());
+  }
   function isFresh(iso) {
     var d = new Date(iso);
     return !isNaN(d) && (Date.now() - d.getTime()) < 6 * 3600000;
   }
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2400);
+  }
+
   function renderSeg() {
     var tags = ['全部'];
-    data.items.forEach(function (it) { if (it.tag && tags.indexOf(it.tag) < 0) tags.push(it.tag); });
+    state.data.items.forEach(function (it) { if (it.tag && tags.indexOf(it.tag) < 0) tags.push(it.tag); });
     if (tags.indexOf(state.filter) < 0) state.filter = '全部';
     segEl.innerHTML = '';
     tags.forEach(function (t) {
@@ -122,35 +238,200 @@
       segEl.appendChild(b);
     });
   }
+
+  function makeThumb(url, className) {
+    var img = document.createElement('img');
+    img.className = className;
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.alt = '';
+    img.onerror = function () { img.remove(); };
+    img.src = url;
+    return img;
+  }
+
   function renderFeed() {
     feedEl.innerHTML = '';
-    var items = data.items.filter(function (it) { return state.filter === '全部' || it.tag === state.filter; });
+    var items = state.data.items.filter(function (it) { return state.filter === '全部' || it.tag === state.filter; });
     if (!items.length) {
       var e = document.createElement('div'); e.className = 'empty';
       e.textContent = '这个分类暂时没有新火花';
       feedEl.appendChild(e); return;
     }
     items.forEach(function (it, i) {
+      var isHero = (i === 0 && state.filter === '全部');
       var c = document.createElement('article');
-      c.className = 'card' + (i === 0 && state.filter === '全部' ? ' hero' : '');
+      c.className = 'card' + (isHero ? ' hero' : '');
+      var text = document.createElement('div'); text.className = 'text';
       var r1 = document.createElement('div'); r1.className = 'row1';
       var chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = it.tag || '未分类';
       r1.appendChild(chip);
       if (isFresh(it.publishedAt)) { var f = document.createElement('span'); f.className = 'fresh'; f.title = '6 小时内'; r1.appendChild(f); }
       var h = document.createElement('h2'); h.textContent = it.title || '';
-      c.appendChild(r1); c.appendChild(h);
-      if (it.summary) { var p = document.createElement('p'); p.textContent = it.summary; c.appendChild(p); }
+      text.appendChild(r1); text.appendChild(h);
+      if (it.summary) { var p = document.createElement('p'); p.textContent = it.summary; text.appendChild(p); }
       var m = document.createElement('div'); m.className = 'meta';
       m.textContent = [it.source, fmt(it.publishedAt)].filter(Boolean).join(' · ');
-      c.appendChild(m);
-      if (it.url) c.addEventListener('click', function () { window.open(it.url, '_blank', 'noopener'); });
+      text.appendChild(m);
+      if (isHero) {
+        if (it.image) c.appendChild(makeThumb(it.image, 'hero-img'));
+        c.appendChild(text);
+      } else {
+        c.appendChild(text);
+        if (it.image) c.appendChild(makeThumb(it.image, 'thumb'));
+      }
+      c.addEventListener('click', function () { openReader(it); });
       feedEl.appendChild(c);
     });
   }
-  document.getElementById('updated').textContent = fmtFull(data.updatedAt) + ' 更新';
-  document.getElementById('footTime').textContent = fmtFull(data.updatedAt);
-  document.getElementById('summaryBar').textContent = data.summary || '';
-  renderSeg(); renderFeed();
+
+  function renderAll() {
+    document.getElementById('updated').textContent = fmtFull(state.data.updatedAt) + ' 更新';
+    document.getElementById('footTime').textContent = fmtFull(state.data.updatedAt);
+    var bar = document.getElementById('summaryBar');
+    if (state.data.summary) { bar.textContent = state.data.summary; bar.style.display = ''; }
+    renderSeg(); renderFeed();
+  }
+
+  /* ---------- 阅读模式 ---------- */
+  var mask = document.getElementById('mask');
+  var reader = document.getElementById('reader');
+  var rBody = document.getElementById('rBody');
+  var currentUrl = '';
+  var readerAbort = null;
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function mdToHtml(md) {
+    md = md.slice(0, 8000);
+    var blocks = md.split(/\n{2,}/);
+    var out = [];
+    blocks.forEach(function (b) {
+      var t = b.trim();
+      if (!t) return;
+      t = esc(t);
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      t = t.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      t = t.replace(/!\[[^\]]*\]\((https?:[^)\s]+)\)/g, '<img loading="lazy" referrerPolicy="no-referrer" src="$1" onerror="this.remove()">');
+      if (/^#{1,4}\s/.test(t)) out.push('<h3>' + t.replace(/^#{1,4}\s+/, '') + '</h3>');
+      else out.push('<p>' + t.replace(/\n/g, '<br>') + '</p>');
+    });
+    return out.join('');
+  }
+  function skeleton() {
+    var s = document.createElement('div'); s.className = 'skeleton';
+    for (var i = 0; i < 7; i++) s.appendChild(document.createElement('i'));
+    return s;
+  }
+  function openReader(it) {
+    document.getElementById('rChip').textContent = it.tag || '未分类';
+    document.getElementById('rTitle').textContent = it.title || '';
+    document.getElementById('rMeta').textContent = [it.source, fmtFull(it.publishedAt)].filter(Boolean).join(' · ');
+    currentUrl = it.url || '';
+    rBody.innerHTML = '';
+    var intro = document.createElement('p');
+    intro.innerHTML = '<b>摘要</b> · ' + esc(it.summary || '暂无摘要');
+    rBody.appendChild(intro);
+    mask.classList.add('open');
+    reader.classList.add('open');
+    reader.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('locked');
+    if (!currentUrl) return;
+    rBody.appendChild(skeleton());
+    if (readerAbort) readerAbort.abort();
+    readerAbort = new AbortController();
+    var timer = setTimeout(function () { readerAbort.abort(); }, 15000);
+    fetch('https://r.jina.ai/' + currentUrl, { signal: readerAbort.signal })
+      .then(function (r) { if (!r.ok) throw new Error('bad status'); return r.text(); })
+      .then(function (text) {
+        clearTimeout(timer);
+        var sk = rBody.querySelector('.skeleton'); if (sk) sk.remove();
+        var cut = text.indexOf('Markdown Content:');
+        if (cut >= 0) text = text.slice(cut + 17);
+        var wrap = document.createElement('div');
+        wrap.innerHTML = mdToHtml(text);
+        rBody.appendChild(wrap);
+      })
+      .catch(function () {
+        clearTimeout(timer);
+        var sk = rBody.querySelector('.skeleton'); if (sk) sk.remove();
+        var tip = document.createElement('p');
+        tip.style.color = '#9B9B9B'; tip.style.fontSize = '13px';
+        tip.textContent = '阅读模式暂时加载不了这篇文章，可以点下方「阅读原文」查看。';
+        rBody.appendChild(tip);
+      });
+  }
+  function closeReader() {
+    if (readerAbort) readerAbort.abort();
+    mask.classList.remove('open');
+    reader.classList.remove('open');
+    reader.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('locked');
+  }
+  mask.addEventListener('click', closeReader);
+  document.getElementById('rClose').addEventListener('click', closeReader);
+  document.getElementById('rOpen').addEventListener('click', function () {
+    if (currentUrl) window.open(currentUrl, '_blank', 'noopener');
+  });
+
+  /* ---------- 数据加载 / 下拉刷新 ---------- */
+  function loadData(showLoading) {
+    if (state.loading) return Promise.resolve(false);
+    state.loading = true;
+    if (showLoading) { ptrText.textContent = '刷新中…'; ptrEl.classList.add('show', 'loading'); }
+    document.getElementById('refreshBtn').classList.add('spinning');
+    return fetch('data.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('bad'); return r.json(); })
+      .then(function (d) {
+        var isNew = !state.data || d.updatedAt !== state.data.updatedAt;
+        state.data = d;
+        renderAll();
+        return isNew;
+      })
+      .finally(function () {
+        state.loading = false;
+        document.getElementById('refreshBtn').classList.remove('spinning');
+        if (showLoading) setTimeout(function () { ptrEl.classList.remove('show', 'loading'); }, 500);
+      });
+  }
+  function manualRefresh() {
+    loadData(true).then(function (isNew) {
+      if (!state.data) { toast('网络不佳，稍后再试'); return; }
+      toast((isNew ? '已收到新快照 · ' : '已是最新 · ') + state.data.items.length + ' 条 · 更新于 ' + fmtShort(state.data.updatedAt));
+    }).catch(function () { toast('网络不佳，稍后再试'); });
+  }
+  document.getElementById('refreshBtn').addEventListener('click', manualRefresh);
+
+  var pullStart = null, pullReady = false;
+  document.addEventListener('touchstart', function (e) {
+    if (window.scrollY <= 0 && !reader.classList.contains('open') && e.touches.length === 1) {
+      pullStart = e.touches[0].clientY; pullReady = false;
+    } else { pullStart = null; }
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (pullStart === null) return;
+    var dy = e.touches[0].clientY - pullStart;
+    if (dy > 12 && window.scrollY <= 0) {
+      ptrEl.classList.add('show');
+      pullReady = dy > 76;
+      ptrText.textContent = pullReady ? '松开刷新' : '下拉获取最新情报';
+    }
+  }, { passive: true });
+  document.addEventListener('touchend', function () {
+    if (pullStart === null) return;
+    pullStart = null;
+    if (pullReady) { pullReady = false; manualRefresh(); }
+    else if (!state.loading) ptrEl.classList.remove('show');
+  });
+
+  /* ---------- 启动 ---------- */
+  loadData(false).catch(function () {
+    feedEl.innerHTML = '<div class="empty">加载失败，下拉重试</div>';
+  });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
 })();
 </script>
 </body>
