@@ -1,5 +1,5 @@
 /* SPARK · 灵感雷达 Service Worker */
-var CACHE = 'spark-v4';
+var CACHE = 'spark-v5';
 var SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
