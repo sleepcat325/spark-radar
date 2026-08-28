@@ -111,28 +111,22 @@
     100% { transform: translateX(-50%) translateY(90px); opacity: 0; }
   }
 
-  .mask {
-    position: fixed; inset: 0; background: rgba(20,20,20,.42); z-index: 80;
-    opacity: 0; pointer-events: none; transition: opacity .22s ease;
+  /* 阅读视图：普通文档流全页视图，不用 fixed/transform 浮层，
+     从根上规避部分机型（MIUI 等）可视视口被浮层卡偏的问题 */
+  .reader { display: none; }
+  .reader.open { display: block; animation: readerIn .18s ease; }
+  @keyframes readerIn { from { opacity: 0 } to { opacity: 1 } }
+  .reader .rv-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .rv-back {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--card);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto;
   }
-  .mask.open { opacity: 1; pointer-events: auto; }
-  .reader {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
-    max-width: 480px; margin: 0 auto;
-    background: var(--bg); border-radius: 20px 20px 0 0;
-    height: 86vh;
-    transform: translateY(102%); transition: transform .28s cubic-bezier(.2,.8,.25,1);
-    display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 -8px 32px rgba(0,0,0,.18);
-  }
-  .reader.open { transform: translateY(0); }
-  .reader .grip { padding: 10px 0 6px; display: flex; justify-content: center; flex: 0 0 auto; touch-action: none; }
-  .reader .grip i { width: 38px; height: 4px; border-radius: 2px; background: #D4D4D4; }
-  .reader .r-head { padding: 4px 20px 12px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .rv-tip { font-size: 11px; color: var(--ink3); }
+  .reader .r-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
   .reader .r-head .row1 { margin-bottom: 8px; }
-  .reader h1 { font-size: 18px; font-weight: 700; line-height: 1.5; }
+  .reader h1 { font-size: 20px; font-weight: 700; line-height: 1.5; }
   .reader .r-meta { margin-top: 8px; font-size: 11px; color: var(--ink3); }
-  .reader .r-body { flex: 1; overflow-y: auto; padding: 16px 20px 24px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  .reader .r-body { padding-bottom: 8px; }
   .reader .r-body p { font-size: 15px; line-height: 1.8; color: #2B2B2B; margin-bottom: 14px; }
   .reader .r-body h3 { font-size: 16px; margin: 18px 0 8px; }
   .reader .r-body img { max-width: 100%; border-radius: 10px; margin: 6px 0 14px; }
@@ -141,7 +135,7 @@
   .skeleton i { display: block; height: 13px; border-radius: 7px; background: linear-gradient(90deg,#ECECEC,#F7F7F7,#ECECEC); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
   .skeleton i:nth-child(2n) { width: 88%; } .skeleton i:nth-child(3n) { width: 62%; }
   @keyframes shimmer { 0% { background-position: 120% 0 } 100% { background-position: -80% 0 } }
-  .r-foot { flex: 0 0 auto; display: flex; gap: 10px; padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 14px); border-top: 1px solid var(--line); background: var(--card); }
+  .r-foot { display: flex; gap: 10px; padding: 14px 0 calc(env(safe-area-inset-bottom, 0px) + 8px); border-top: 1px solid var(--line); }
   .r-foot button {
     flex: 1; border: 0; border-radius: 999px; padding: 12px 0; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
   }
@@ -152,6 +146,7 @@
 <body>
 <div class="ptr" id="ptr"><span class="dot"></span><span id="ptrText">下拉获取最新情报</span></div>
 
+<div id="feedView">
 <header>
   <div class="brand">
     <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
@@ -174,12 +169,19 @@
 <nav class="seg" id="seg" aria-label="分类"></nav>
 <main class="feed" id="feed"><div class="empty">正在接收火花…</div></main>
 <footer>SPARK · 灵感雷达 — 数据来自公开 RSS 订阅源<br>每小时自动更新 · 下拉获取最新快照 · 更新于 <span id="footTime"></span></footer>
+</div>
 
 <div class="toast" id="toast"></div>
 
-<div class="mask" id="mask"></div>
 <section class="reader" id="reader" aria-hidden="true">
-  <div class="grip"><i></i></div>
+  <div class="rv-topbar">
+    <button class="rv-back" id="rClose" aria-label="返回列表">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M10 3 5 8l5 5" stroke="#141414" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span class="rv-tip">下拉页面也可以返回</span>
+  </div>
   <div class="r-head">
     <div class="row1"><span class="chip" id="rChip"></span></div>
     <h1 id="rTitle"></h1>
@@ -187,7 +189,6 @@
   </div>
   <div class="r-body" id="rBody"></div>
   <div class="r-foot">
-    <button class="ghost" id="rClose">关闭</button>
     <button class="primary" id="rOpen">阅读原文</button>
   </div>
 </section>
@@ -300,7 +301,6 @@
   }
 
   /* ---------- 阅读模式 ---------- */
-  var mask = document.getElementById('mask');
   var reader = document.getElementById('reader');
   var rBody = document.getElementById('rBody');
   var currentUrl = '';
@@ -330,9 +330,10 @@
     for (var i = 0; i < 7; i++) s.appendChild(document.createElement('i'));
     return s;
   }
-  /* 浮层不再锁定 body 滚动：阅读面板用 overscroll-behavior:contain 阻断滚动穿透，
-     彻底避免部分机型（MIUI 等）在锁定/还原滚动时把首页顶部裁掉的问题 */
+  /* 阅读视图是普通文档流页面：打开时隐藏列表并回到顶部，
+     关闭时还原列表滚动位置。没有任何 fixed/transform 浮层参与。 */
   var readerOpen = false;
+  var feedScrollY = 0;
   function openReader(it) {
     document.getElementById('rChip').textContent = it.tag || '未分类';
     document.getElementById('rTitle').textContent = it.title || '';
@@ -342,10 +343,12 @@
     var intro = document.createElement('p');
     intro.innerHTML = '<b>摘要</b> · ' + esc(it.summary || '暂无摘要');
     rBody.appendChild(intro);
-    mask.classList.add('open');
+    feedScrollY = window.scrollY || 0;
+    document.getElementById('feedView').style.display = 'none';
     reader.classList.add('open');
     reader.setAttribute('aria-hidden', 'false');
     readerOpen = true;
+    window.scrollTo(0, 0);
     if (!currentUrl) return;
     rBody.appendChild(skeleton());
     if (readerAbort) readerAbort.abort();
@@ -373,72 +376,40 @@
   }
   /* 阻止浏览器在历史/手势导航时自动乱动滚动位置 */
   if ('scrollRestoration' in history) { try { history.scrollRestoration = 'manual'; } catch (e) {} }
-  /* 关闭后轻推一下滚动，纠正部分机型（MIUI 等）可视视口卡住偏移的问题 */
-  function nudgeViewport() {
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        var y = window.scrollY || 0;
-        window.scrollTo(0, y + 1);
-        window.scrollTo(0, y);
-      });
-    });
-  }
   function closeReader() {
     if (!readerOpen) return;
     if (readerAbort) readerAbort.abort();
-    mask.classList.remove('open');
     reader.classList.remove('open');
     reader.setAttribute('aria-hidden', 'true');
+    document.getElementById('feedView').style.display = '';
     readerOpen = false;
-    nudgeViewport();
+    window.scrollTo(0, feedScrollY);
   }
-  mask.addEventListener('click', closeReader);
   document.getElementById('rClose').addEventListener('click', closeReader);
 
-  /* ---------- 下拉手势关闭弹窗 ----------
-     手势起点在小把手 / 头部 / 底部栏，或正文已滚动到顶部时生效；
-     拖动超过 120px 松手即关闭，否则弹回原位。 */
-  var dragStartY = null, dragDy = 0, dragging = false;
+  /* ---------- 下拉手势关闭阅读视图 ----------
+     阅读页滚动到顶部后继续下拉，超过 76px 松手即返回列表；
+     复用顶部提示胶囊，不对页面做任何位移。 */
+  var dragStartY = null, dragReady = false;
   reader.addEventListener('touchstart', function (e) {
     if (!readerOpen || e.touches.length !== 1) { dragStartY = null; return; }
-    var onChrome = e.target.closest && e.target.closest('.grip, .r-head, .r-foot');
-    if (onChrome || rBody.scrollTop <= 0) {
-      dragStartY = e.touches[0].clientY; dragDy = 0; dragging = false;
-    } else { dragStartY = null; }
+    if (window.scrollY <= 0) { dragStartY = e.touches[0].clientY; dragReady = false; }
+    else { dragStartY = null; }
   }, { passive: true });
   reader.addEventListener('touchmove', function (e) {
     if (dragStartY === null) return;
     var dy = e.touches[0].clientY - dragStartY;
-    if (!dragging && dy > 8 && rBody.scrollTop <= 0) {
-      dragging = true;
-      reader.style.transition = 'none';
+    if (dy > 12 && window.scrollY <= 0) {
+      dragReady = dy > 76;
+      ptrText.textContent = dragReady ? '松开返回列表' : '下拉返回列表';
+      ptrEl.classList.add('show');
     }
-    if (dragging) {
-      e.preventDefault();
-      dragDy = Math.max(0, dy);
-      reader.style.transform = 'translateY(' + dragDy + 'px)';
-      mask.style.opacity = String(Math.max(0, 1 - dragDy / 320));
-    }
-  }, { passive: false });
+  }, { passive: true });
   reader.addEventListener('touchend', function () {
     if (dragStartY === null) return;
     dragStartY = null;
-    if (!dragging) return;
-    dragging = false;
-    mask.style.opacity = '';
-    if (dragDy > 120) {
-      /* 从当前位置滑出后再真正关闭，避免跳变 */
-      reader.style.transition = 'transform .22s cubic-bezier(.2,.8,.25,1)';
-      reader.style.transform = 'translateY(102%)';
-      setTimeout(function () {
-        reader.style.transition = '';
-        reader.style.transform = '';
-        closeReader();
-      }, 230);
-    } else {
-      reader.style.transition = '';
-      reader.style.transform = '';
-    }
+    ptrEl.classList.remove('show');
+    if (dragReady) { dragReady = false; closeReader(); }
   });
   document.getElementById('rOpen').addEventListener('click', function () {
     if (currentUrl) window.open(currentUrl, '_blank', 'noopener');
