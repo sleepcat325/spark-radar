@@ -309,10 +309,24 @@
   function esc(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
+  /* 站方导航通常堆在正文之前：用文章标题定位正文起点，之前的全部丢弃 */
+  function cutToTitle(text, title) {
+    if (!title) return text;
+    var norm = function (s) { return (s || '').replace(/[^0-9A-Za-z一-鿿]+/g, '').toLowerCase(); };
+    var key = norm(title).slice(0, 12);
+    if (key.length < 6) return text;
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (norm(lines[i]).indexOf(key) !== -1) {
+        return i > 0 ? lines.slice(i).join('\n') : text;
+      }
+    }
+    return text;
+  }
   function mdToHtml(md) {
     md = md.slice(0, 12000);
-    /* 截掉正文之后的站方声明 / 责编尾巴 */
-    var tail = md.search(/^(责任编辑|责编|声明|本文系|本文来自|未经允许|授权协议)/m);
+    /* 截掉正文之后的站方声明 / 责编 / 相关推荐尾巴 */
+    var tail = md.search(/^(责任编辑|责编|声明|本文系|本文来自|未经允许|授权协议|相关阅读|相关文章|推荐阅读|猜你喜欢|广告)/m);
     if (tail > 400) md = md.slice(0, tail);
     var blocks = md.split(/\n{2,}/);
     var out = [];
@@ -371,6 +385,7 @@
         var sk = rBody.querySelector('.skeleton'); if (sk) sk.remove();
         var cut = text.indexOf('Markdown Content:');
         if (cut >= 0) text = text.slice(cut + 17);
+        text = cutToTitle(text, it.title);
         var wrap = document.createElement('div');
         wrap.innerHTML = mdToHtml(text);
         rBody.appendChild(wrap);
