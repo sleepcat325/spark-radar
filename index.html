@@ -310,16 +310,26 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
   function mdToHtml(md) {
-    md = md.slice(0, 8000);
+    md = md.slice(0, 12000);
+    /* 截掉正文之后的站方声明 / 责编尾巴 */
+    var tail = md.search(/^(责任编辑|责编|声明|本文系|本文来自|未经允许|授权协议)/m);
+    if (tail > 400) md = md.slice(0, tail);
     var blocks = md.split(/\n{2,}/);
     var out = [];
     blocks.forEach(function (b) {
       var t = b.trim();
       if (!t) return;
       t = esc(t);
-      t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-      t = t.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      /* 非 http 链接（javascript: 等）只留文字，避免露出 markdown 残片 */
+      t = t.replace(/\[([^\]]*)\]\((?!https?:)[^)]*\)/g, '$1');
+      /* 先图片后链接：否则链接规则会吃掉图片语法，留下「!mage 2」这类残片 */
       t = t.replace(/!\[[^\]]*\]\((https?:[^)\s]+)\)/g, '<img loading="lazy" referrerPolicy="no-referrer" src="$1" onerror="this.remove()">');
+      t = t.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      /* 整块只有链接或符号（站点导航残留）且没有图片时丢弃 */
+      var textOnly = t.replace(/<a\b[^>]*>[\s\S]*?<\/a>/g, '').replace(/<[^>]+>/g, '')
+                      .replace(/[\s*·\-—–|、。.,!！?？:：'"()（）\[\]]/g, '');
+      if (!textOnly && t.indexOf('<img') === -1) return;
       if (/^#{1,4}\s/.test(t)) out.push('<h3>' + t.replace(/^#{1,4}\s+/, '') + '</h3>');
       else out.push('<p>' + t.replace(/\n/g, '<br>') + '</p>');
     });
